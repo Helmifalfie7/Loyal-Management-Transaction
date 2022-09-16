@@ -1,0 +1,66 @@
+{
+    "$schema": "https://json-schema.org/draft/2019-09/schema",
+    "$id": "http://example.com/example.json",
+    "type": "object",
+    "default": {},
+    "title": "Root Schema",
+    "required": [
+        "customerName",
+        "customerFirstName",
+        "customerLastName",
+        "emailAddress",
+        "Status"
+    ],
+    "properties": {
+        "customerName": {
+            "type": "string",
+            "default": "",
+            "title": "The customerName Schema",
+            "examples": [
+                "Makram Meksi"
+            ]
+        },
+        "customerFirstName": {
+            "type": "string",
+            "default": "",
+            "title": "The customerFirstName Schema",
+            "examples": [
+                "Makram"
+            ]
+        },
+        "customerLastName": {
+            "type": "string",
+            "default": "",
+            "title": "The customerLastName Schema",
+            "examples": [
+                "Meksi"
+            ]
+        },
+        "emailAddress": {
+            "type": "string",
+            "default": "",
+            "title": "The emailAddress Schema",
+            "examples": [
+                "meksi.mak@gmail.com"
+            ]
+        },
+        "Status": {
+            "type": "string",
+            "default": "Pending",
+            "title": "The Status Schema",
+            "enum": [
+						"Pending",
+						"Processed",
+						"Cancelled",
+						"Error"
+					]
+        }
+    },
+    "examples": [{
+        "customerName": "Makram Meksi",
+        "customerFirstName": "Makram",
+        "customerLastName": "Meksi",
+        "emailAddress": "meksi.mak@gmail.com",
+        "Status": "Pending"
+    }]
+}

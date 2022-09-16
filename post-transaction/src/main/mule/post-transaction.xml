@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:validation="http://www.mulesoft.org/schema/mule/validation" xmlns:solace="http://www.mulesoft.org/schema/mule/solace"
+	xmlns:json="http://www.mulesoft.org/schema/mule/json"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:salesforce="http://www.mulesoft.org/schema/mule/salesforce" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/salesforce http://www.mulesoft.org/schema/mule/salesforce/current/mule-salesforce.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/json http://www.mulesoft.org/schema/mule/json/current/mule-json.xsd
+http://www.mulesoft.org/schema/mule/solace http://www.mulesoft.org/schema/mule/solace/current/mule-solace.xsd
+http://www.mulesoft.org/schema/mule/validation http://www.mulesoft.org/schema/mule/validation/current/mule-validation.xsd">
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="8de10d52-a548-4e6a-b0cb-06bce966b2af" >
+		<http:listener-connection host="0.0.0.0" port="8081" />
+	</http:listener-config>
+	<salesforce:sfdc-config name="Salesforce_Config" doc:name="Salesforce Config" doc:id="2bd18b39-30a8-4e90-b18a-7a4c09764ca0" >
+		<salesforce:basic-connection username="makrem.meksi@loyalty.com" password="Mo*vtaci1992" />
+	</salesforce:sfdc-config>
+	<solace:config name="Solace_PubSub__Connector_Config" doc:name="Solace PubSub+ Connector Config" doc:id="5ecf47c0-b7a5-4e7f-916b-77a094f12c61" >
+		<solace:connection clientUserName="solace-cloud-client" password="lbsiqmpof4vivor49l1omapukj" msgVPN="transaction-api" brokerHost="tcps://mr4e16qf4y7jz.messaging.solace.cloud:55443" />
+	</solace:config>
+	<flow name="post-transactionFlow" doc:id="6ef93003-64c9-43a7-96fc-fa4083d1635b" >
+		<http:listener doc:name="/transaction" doc:id="59648d5d-33d6-4dd7-9279-c7b5025b21ac" config-ref="HTTP_Listener_config" path="/transaction" />
+		<json:validate-schema doc:name="Validate schema" doc:id="dc30b4c1-129f-4a66-89f9-1fbdadd00d52" schema="schemas/inputpayload.json"/>
+		<solace:publish doc:name="Publish" doc:id="375bb340-cfc7-4aed-8731-d54b3031a13c" config-ref="Solace_PubSub__Connector_Config" destination-type="QUEUE" address="Transaction-API"/>
+		<ee:transform doc:name="Transform Message" doc:id="d37ea45f-4ab8-4cdd-99ba-3455c1b9be47" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"code": "202",
+	"message": "Accepted",
+	"correlationId": correlationId
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<error-handler >
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="03fa7eff-888c-4194-a400-9d1bc632c532" type="JSON:INVALID_INPUT_JSON, JSON:INVALID_SCHEMA, JSON:SCHEMA_NOT_FOUND, JSON:SCHEMA_NOT_HONOURED">
+				<set-variable value="406" doc:name="Http Status" doc:id="0b8c790c-e69d-46bf-aa99-d6e7c4b3c5f5" variableName="Http Status"/>
+				<set-variable value="#[error.description]" doc:name="error message" doc:id="6483bf6b-7cb6-49af-ba4e-45a42f892c9a" variableName="error message"/>
+			</on-error-propagate>
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="8a8108fd-d6ff-410f-93dd-d23449ecd3a3" type="SOLACE:CONNECTIVITY, SOLACE:GENERIC_ERROR, SOLACE:INVALID_CONFIGURATION, SOLACE:RETRY_EXHAUSTED">
+				<set-variable value="500" doc:name="Http Status" doc:id="5b406473-ee33-446a-9228-9c65bf212c60" variableName="Http Status"/>
+				<set-variable value="#[error.description]" doc:name="error message" doc:id="daf1a83c-cf79-4229-8776-adbe29b4099e" variableName="error message"/>
+			</on-error-propagate>
+		</error-handler>
+	</flow>
+	<flow name="post-transactionFlow1" doc:id="dd58811f-181b-40ab-ab87-08f7a13425bf" >
+		<http:listener doc:name="/testConsume" doc:id="50ac033b-ffa5-41db-8b32-68f14d1d25fa" config-ref="HTTP_Listener_config" path="/testConsume"/>
+		<flow-ref doc:name="Consume-transactionFlow" doc:id="6c675aa3-19e9-4c46-b548-d0aeb8c02725" name="Consume-transactionFlow"/>
+	</flow>
+	<flow name="Consume-transactionFlow" doc:id="c0a22484-cb1e-42d8-9ed4-b01dd696bc6d" >
+		<solace:queue-listener doc:name="Guaranteed Endpoint Listener" doc:id="9af2f50b-a433-4c2a-b7a0-a16fc8d45a59" config-ref="Solace_PubSub__Connector_Config" address="Transaction-API"/>
+		<ee:transform doc:name="payload" doc:id="37828545-59da-4dfe-8bfc-e18cb8c8f975" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="ContactEmail" ><![CDATA[%dw 2.0
+output application/json
+---
+payload.emailAddress]]></ee:set-variable>
+			</ee:variables>
+		
+</ee:transform>
+		<salesforce:query doc:name="Get Contact by Email" doc:id="746ac417-04c7-4ce5-9e34-f13aca243511" config-ref="Salesforce_Config" target="Contactout">
+			<salesforce:salesforce-query ><![CDATA[select Id from contact WHERE Email =':Email']]></salesforce:salesforce-query>
+			<salesforce:parameters ><![CDATA[#[output application/java
+---
+{
+	"Email" : vars.ContactEmail
+}]]]></salesforce:parameters>
+		</salesforce:query>
+		<ee:transform doc:name="Transform Message" doc:id="7e134d90-bfa8-472b-af5c-b68a7b53d740" >
+			<ee:message >
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="ContactId" ><![CDATA[%dw 2.0
+output application/json
+---
+vars.Contactout.Id reduce ($$+$)]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<logger level="INFO" doc:name="Logger" doc:id="6762d84e-48ed-446c-9d2b-025d8b3c5103" message="#[payload]"/>
+		<scatter-gather doc:name="Scatter-Gather" doc:id="e50e9905-84a2-4677-b956-43aa10131b40" >
+			<route >
+				<salesforce:query doc:name="ProgramId" doc:id="0758b0a6-d90c-4abe-a59a-5a9c4c996c02" config-ref="Salesforce_Config">
+			<salesforce:salesforce-query><![CDATA[select id  from LoyaltyProgram where Status ='Active']]></salesforce:salesforce-query>
+		</salesforce:query>
+				<set-variable value="#[payload.Id reduce ($$+$)]" doc:name="LoyaltyProgramId" doc:id="33adc352-4258-4a38-835b-0b74aa225ea2" variableName="ProgramId" />
+				<logger level="INFO" doc:name="ProgramId" doc:id="c3cd4e8f-c19c-479e-acfa-e8c10cf619d8" message="#[vars.ProgramId]"/>
+			
+</route>
+			<route >
+				<salesforce:query doc:name="MemberId" doc:id="4af7f7a2-0a77-4483-b218-51e9aac7cd50" config-ref="Salesforce_Config">
+					<salesforce:salesforce-query ><![CDATA[select id from LoyaltyProgramMember  where ContactId  =':ContactId' ]]></salesforce:salesforce-query>
+					<salesforce:parameters ><![CDATA[#[output application/java
+---
+{
+	"ContactId" : vars.ContactId
+}]]]></salesforce:parameters>
+				</salesforce:query>
+				<set-variable value="#[payload.Id reduce ($$+$)]" doc:name="MemberId" doc:id="a4a8eaaa-e9c9-4476-a3b9-a9d295ed1556" variableName="MemberId"/>
+				<logger level="INFO" doc:name="MemberId" doc:id="6ee51e9a-e6a6-4e1b-b76c-2f29c0d10ec5" message="#[vars.MemberId]"/>
+			
+</route>
+		</scatter-gather>
+		<ee:transform doc:name="Prepare Data" doc:id="37482dff-bdca-4e34-a49c-47aebeb837ba" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+[{
+	"LoyaltyProgramId": vars.ProgramId,
+	"MemberId" : vars.MemberId,
+	"Status" : payload.Status,
+	"ActivityDate": now () as DateTime {format : "yyyy-MM-dd'T'HH:mm:00.000+0000"}
+}]
+]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<salesforce:create type="TransactionJournal" doc:name="Create Transaction" doc:id="38642916-a804-4dd1-8d5a-ee552fe763cc" config-ref="Salesforce_Config"/>
+		<choice doc:name="Choice" doc:id="229d339a-bc1b-41c0-a512-4acb0cb7f713" >
+			<when expression="#[payload.successful == false]">
+				<ee:transform doc:name="error" doc:id="90ab7a36-9bc6-42ed-8874-71f8fd9064c3" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"code": "400",
+	"message": "Journal cannot be created"
+	
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="success" doc:id="58efc707-85a3-4c9c-bace-1fc44a14d6cf">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"code": "200",
+	"message": "Journal created successfully",
+	"correlationId": payload.items.id
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+			</otherwise>
+		</choice>
+		<error-handler >
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="b2fd82db-b802-4a63-bc36-2d405aa61893" type="ANY">
+				<set-variable value="500" doc:name="Http Status" doc:id="435381c1-6f3d-4725-9a14-136cd71be15b" variableName="Http Status"/>
+				<set-variable value="#[error.description]" doc:name="error message" doc:id="720f9572-df64-4c38-971f-a124c25969b8" variableName="error message"/>
+			</on-error-propagate>
+		</error-handler>
+	</flow> 
+</mule>
